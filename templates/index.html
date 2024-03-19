@@ -9,19 +9,30 @@
     <div id="app">
         <h1>Integram</h1>
 
+        <div v-if="userToken">
+            You are using token: {{ userToken }}
+            <h2>Welcome, {{ currentUser.username }}!</h2>
 
-        
-        <div v-for="post in posts" :key="post.id" class="post">
-            <h2>{{ post.title }}</h2>
-            <p>{{ post.body }}</p>
-            <h3>Comments:</h3>
-            <div class="commentsContainer">
-                <div v-for="comment in post.comments" :key="comment.id" class="comment">
-                    {{ comment.text }}
+            <button @click="logout">Logout</button>
+
+            <div v-for="post in posts" :key="post.id" class="post">
+                <h2>{{ post.title }}</h2>
+                <p>{{ post.content }}</p>
+                <h3>Comments:</h3>
+                <div class="commentsContainer">
+                    <div v-for="comment in post.comments" :key="comment.id" class="comment">
+                        {{ comment.text }}
+                    </div>
                 </div>
+                <input type="text" v-model="post.newCommentText" placeholder="Add comment">
+                <button @click="addComment(post)">Add Comment</button>
             </div>
-            <input type="text" v-model="post.newCommentText" placeholder="Add comment">
-            <button @click="addComment(post.id, newCommentText)">Add Comment</button>
+        </div>
+
+        <div v-else>
+            <input type="text" v-model="username" placeholder="Username">
+            <input type="password" v-model="password" placeholder="Password">
+            <button @click="login">Login</button>
         </div>
     </div>
 
@@ -32,16 +43,49 @@
                 return {
                     posts: [],
                     newCommentText: '',
-                    user: undefined
+                    username: '',
+                    password: '',
+                    userToken: undefined,
+                    currentUser: {}
                 };
             },
             created() {
-                this.fetchPosts();
+                this.getToken();
+                if (this.userToken) {
+                    this.fetchUser();
+                    this.fetchPosts();
+                    for (let post of this.posts) {
+                        this.fetchComments(post.id);
+                    }
+                }
             },
             methods: {
+                getToken() {
+                    // Make a GET request to get token
+                    let token = localStorage.getItem('token');
+                    if (token) {
+                        this.userToken = token;
+                    }
+                },
+                fetchUser() {
+                    // Make a GET request to fetch posts
+                    fetch('api/user', {headers: { 'Authorization': `Bearer ${this.userToken}` }})
+                        .then(response => response.json()).then(response => {
+                            if (response.detail) {
+                                this.userToken = undefined;
+                                localStorage.removeItem('token');
+                            }
+                            return response;
+                        })
+                        .then(user => {
+                            console.log('user: ', user);
+                            this.currentUser = user;
+                        })
+                        .catch(error => console.error('Error fetching posts:', error));
+                },
                 fetchPosts() {
                     // Make a GET request to fetch posts
-                    fetch('api/posts')
+                    fetch('api/posts', {headers: { 'Authorization': `Bearer ${this.userToken}` }})
                         .then(response => response.json())
                         .then(posts => {
                             this.posts = posts.map(post => ({
@@ -51,16 +95,54 @@
                         })
                         .catch(error => console.error('Error fetching posts:', error));
                 },
-                addComment(postId, commentText) {
-                    // Make a POST request to add comment
-                    fetch('api/comments', {
+                fetchComments(postId) {
+                    // Make a GET request to fetch comments
+                    fetch(`api/comments?postId=${postId}`, {headers: { 'Authorization': `Bearer ${this.userToken}` }})
+                        .then(response => response.json())
+                        .then(comments => {
+                            const postIndex = this.posts.findIndex(post => post.id === postId);
+                            if (postIndex !== -1) {
+                                this.posts[postIndex].comments = comments;
+                            }
+                        })
+                        .catch(error => console.error('Error fetching comments:', error));
+                },
+                login() {
+                    // Make a POST request to login
+                    fetch('api/login', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            postId: postId,
-                            content: commentText
+                            username: this.username,
+                            password: this.password
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(body => {
+                        this.currentUser = {username: this.username};
+                        this.userToken = body.token;
+                        localStorage.setItem('token', body.token);
+                        this.fetchPosts();
+                    })
+                    .catch(error => console.error('Error logging in:', error));
+                },
+                logout() {
+                    this.userToken = undefined;
+                    localStorage.removeItem('token');
+                },
+                addComment(post) {
+                    // Make a POST request to add comment
+                    fetch('api/comments', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + this.userToken
+                        },
+                        body: JSON.stringify({
+                            postId: post.id,
+                            content: post.newCommentText
                         })
                     })
                     .then(response => response.json())

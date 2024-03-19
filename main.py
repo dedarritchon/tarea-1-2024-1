@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.requests import Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+import datetime
 
 import random
 
@@ -22,7 +23,7 @@ class User(BaseModel):
     username: str
     password: str
     avatar: str = ''
-    created_at: Optional[str] = None
+    created: Optional[str] = None
 
 class LoginRequest(BaseModel):
     username: str
@@ -240,7 +241,8 @@ def create_user(createUserPayload: CreateUserRequest):
         id=generate_random_id(),
         username=createUserPayload.username,
         password=createUserPayload.password,
-        avatar=createUserPayload.avatar
+        avatar=createUserPayload.avatar,
+        created=datetime.datetime.now().isoformat()
     )
 
     userDatabase.add_user(user)
@@ -268,12 +270,16 @@ def login(loginPayload: LoginRequest):
 
 
 @app.get("/api/users", response_model=List[User], tags=["users"])
-def get_users():
+def get_users(authorization: Annotated[str, Header()]):
+    user = getUserFromSession(authorization)
     return userDatabase.users
 
 
 @app.get("/api/posts", response_model=List[Post], tags=["posts"])
-def get_posts(title: str = '', userId: str = ''):
+def get_posts(authorization: Annotated[str, Header()], title: str = '', userId: str = ''):
+
+    user = getUserFromSession(authorization)
+
     allPosts = postDatabase.posts
 
     if title:
@@ -290,6 +296,11 @@ def getUserFromSession(authorization: str):
         raise HTTPException(status_code=401, detail="Unauthorized")
     return userSession.user
 
+@app.get("/api/user", response_model=User, tags=["users"])
+def get_current_user(authorization: Annotated[str, Header()]):
+    user = getUserFromSession(authorization)
+    return user
+
 @app.post("/api/posts", response_model=Post, tags=["posts"])
 def create_post(ceatePostPayload: CreatePostRequest, authorization: Annotated[str, Header()]):
 
@@ -299,7 +310,8 @@ def create_post(ceatePostPayload: CreatePostRequest, authorization: Annotated[st
         id=generate_random_id(),
         title=ceatePostPayload.title,
         content=ceatePostPayload.content,
-        userId=user.id
+        userId=user.id,
+        created=datetime.datetime.now().isoformat()
     )
 
     postDatabase.add_post(post)
@@ -315,7 +327,8 @@ def create_comment(createCommentPayload: CreateCommentRequest, authorization: An
         id=generate_random_id(),
         content=createCommentPayload.content,
         postId=createCommentPayload.postId,
-        userId=user.id
+        userId=user.id,
+        created=datetime.datetime.now().isoformat()
     )
 
     commentDatabase.add_comment(comment)
@@ -335,7 +348,8 @@ def create_friendship(createFriendshipPayload: createFriendshipRequest, authoriz
     friendship = Friendship(
         id=generate_random_id(),
         userId=user.id,
-        friendId=createFriendshipPayload.friendId
+        friendId=createFriendshipPayload.friendId,
+        created=datetime.datetime.now().isoformat()
     )
 
     friendshipDatabase.add_friendship(friendship)
@@ -414,7 +428,8 @@ def populate():
             id=generate_random_id(),
             username=f'user{i}',
             password=f'pass{i}',
-            avatar=f"https://cdn-icons-png.flaticon.com/256/21/2110{i}.png"
+            avatar=f"https://cdn-icons-png.flaticon.com/256/21/2110{i}.png",
+            created=datetime.datetime.now().isoformat()
         )
         userDatabase.add_user(user)
 
@@ -423,7 +438,8 @@ def populate():
             id=generate_random_id(),
             title=f'post{i}',
             content=generate_random_content(),
-            userId=userDatabase.users[i].id
+            userId=userDatabase.users[i].id,
+            created=datetime.datetime.now().isoformat()
         )
         postDatabase.add_post(post)
         
@@ -432,7 +448,8 @@ def populate():
             id=generate_random_id(),
             content=generate_random_content(),
             postId=postDatabase.posts[i].id,
-            userId=userDatabase.users[i].id
+            userId=userDatabase.users[i].id,
+            created=datetime.datetime.now().isoformat()
         )
         commentDatabase.add_comment(comment)
 
@@ -442,7 +459,8 @@ def populate():
             id=generate_random_id(),
             userId=userDatabase.users[i].id,
             friendId=userDatabase.users[i+1].id,
-            status=status
+            status=status,
+            created=datetime.datetime.now().isoformat()
         )
         friendshipDatabase.add_friendship(friendship)
 
