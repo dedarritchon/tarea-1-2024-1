@@ -1,12 +1,24 @@
 from typing import Union, Optional, List, Annotated
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, Header
+from fastapi.responses import HTMLResponse
+from fastapi.requests import Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+import random
 
 app = FastAPI()
 
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+templates = Jinja2Templates(directory="templates")
+
+
+
 
 class User(BaseModel):
-    id: int
+    id: str
     username: str
     password: str
     avatar: str = ''
@@ -33,33 +45,33 @@ class Post(BaseModel):
     title: str
     content: str
     created: Optional[str] = None
-    userId: int
+    userId: str
 
 class CreatePostRequest(BaseModel):
     title: str
     content: str
 
 class Comment(BaseModel):
-    id: int
+    id: str
     content: str
     created: Optional[str] = None
-    postId: int
-    userId: int
+    postId: str
+    userId: str
 
 class CreateCommentRequest(BaseModel):
     content: str
-    postId: int
+    postId: str
 
 class Friendship(BaseModel):
-    id: int
-    userId: int
-    friendId: int
+    id: str
+    userId: str
+    friendId: str
     status: str = 'pending'
     created: Optional[str] = None
 
 
 class createFriendshipRequest(BaseModel):
-    friendId: int
+    friendId: str
 
 class updateFriendshipRequest(BaseModel):
     status: str
@@ -204,7 +216,7 @@ friendshipDatabase = FriendshipDatabase()
 userSessionDatabase = UserSessionDatabase()
 
 
-@app.get("/reset")
+@app.get("/api/reset")
 def reset_state():
     userDatabase.reset()
     postDatabase.reset()
@@ -214,11 +226,9 @@ def reset_state():
     return {}
 
 def generate_random_id():
-    import random
-    # with letters and numbers
     return ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=10))
 
-@app.post("/users", response_model=User, tags=["users"])
+@app.post("/api/users", response_model=User, tags=["users"])
 def create_user(createUserPayload: CreateUserRequest):
     
     existing_user = userDatabase.get_user_by_username(createUserPayload.username)
@@ -237,7 +247,7 @@ def create_user(createUserPayload: CreateUserRequest):
 
     return user
 
-@app.post("/login", response_model=LoginResponse, tags=["login"])
+@app.post("/api/login", response_model=LoginResponse, tags=["login"])
 def login(loginPayload: LoginRequest):
     
     user = userDatabase.get_user_by_username(loginPayload.username)
@@ -257,13 +267,13 @@ def login(loginPayload: LoginRequest):
     return LoginResponse(token=token)
 
 
-@app.get("/users", response_model=List[User], tags=["users"])
+@app.get("/api/users", response_model=List[User], tags=["users"])
 def get_users():
     return userDatabase.users
 
 
-@app.get("/posts", response_model=List[Post], tags=["posts"])
-def get_posts(title: str = '', userId: int = None):
+@app.get("/api/posts", response_model=List[Post], tags=["posts"])
+def get_posts(title: str = '', userId: str = ''):
     allPosts = postDatabase.posts
 
     if title:
@@ -280,7 +290,7 @@ def getUserFromSession(authorization: str):
         raise HTTPException(status_code=401, detail="Unauthorized")
     return userSession.user
 
-@app.post("/posts", response_model=Post, tags=["posts"])
+@app.post("/api/posts", response_model=Post, tags=["posts"])
 def create_post(ceatePostPayload: CreatePostRequest, authorization: Annotated[str, Header()]):
 
     user = getUserFromSession(authorization)
@@ -296,7 +306,7 @@ def create_post(ceatePostPayload: CreatePostRequest, authorization: Annotated[st
 
     return post
 
-@app.post("/comments", response_model=Comment, tags=["comments"])
+@app.post("/api/comments", response_model=Comment, tags=["comments"])
 def create_comment(createCommentPayload: CreateCommentRequest, authorization: Annotated[str, Header()]):
 
     user = getUserFromSession(authorization)
@@ -312,12 +322,12 @@ def create_comment(createCommentPayload: CreateCommentRequest, authorization: An
 
     return comment
 
-@app.get("/comments", response_model=List[Comment], tags=["comments"])
-def get_comments(postId: int):
+@app.get("/api/comments", response_model=List[Comment], tags=["comments"])
+def get_comments(postId: str):
     return [comment for comment in commentDatabase.comments if comment.postId == postId]
 
 
-@app.post("/friendships", response_model=Friendship, tags=["friendships"])
+@app.post("/api/friendships", response_model=Friendship, tags=["friendships"])
 def create_friendship(createFriendshipPayload: createFriendshipRequest, authorization: Annotated[str, Header()]):
 
     user = getUserFromSession(authorization)
@@ -332,11 +342,11 @@ def create_friendship(createFriendshipPayload: createFriendshipRequest, authoriz
 
     return friendship
 
-@app.get("/friendships", response_model=List[Friendship], tags=["friendships"])
+@app.get("/api/friendships", response_model=List[Friendship], tags=["friendships"])
 def get_friendships(userId: int):
     return [friendship for friendship in friendshipDatabase.friendships if friendship.userId == userId]
 
-@app.post("/friendships/{id}", response_model=Friendship, tags=["friendships"])
+@app.post("/api/friendships/{id}", response_model=Friendship, tags=["friendships"])
 def update_friendship(id: int, acceptFriendshipPayload: updateFriendshipRequest, authorization: Annotated[str, Header()]):
 
     user = getUserFromSession(authorization)
@@ -353,7 +363,7 @@ def update_friendship(id: int, acceptFriendshipPayload: updateFriendshipRequest,
 
     return friendship
 
-@app.get("/friendships/recommendations", response_model=List[User], tags=["friendships"])
+@app.get("/api/friendships/recommendations", response_model=List[User], tags=["friendships"])
 def get_friendship_recommendations(authorization: Annotated[str, Header()]):
 
     user = getUserFromSession(authorization)
@@ -387,3 +397,66 @@ def get_friendship_recommendations(authorization: Annotated[str, Header()]):
             recommendations.append(u)
 
     return recommendations
+
+def generate_random_content():
+    return ''.join(random.choices('lorem ipsum dolor sit amet, consectetur adipiscing elit. ', k=50))
+
+@app.get("/api/populate", tags=["populate"])
+def populate():
+    # create 10, users, 10 posts, 10 comments, 10 friendships
+    userDatabase.reset()
+    postDatabase.reset()
+    commentDatabase.reset()
+    friendshipDatabase.reset()
+
+    for i in range(10):
+        user = User(
+            id=generate_random_id(),
+            username=f'user{i}',
+            password=f'pass{i}',
+            avatar=f"https://cdn-icons-png.flaticon.com/256/21/2110{i}.png"
+        )
+        userDatabase.add_user(user)
+
+    for i in range(10):
+        post = Post(
+            id=generate_random_id(),
+            title=f'post{i}',
+            content=generate_random_content(),
+            userId=userDatabase.users[i].id
+        )
+        postDatabase.add_post(post)
+        
+    for i in range(10):
+        comment = Comment(
+            id=generate_random_id(),
+            content=generate_random_content(),
+            postId=postDatabase.posts[i].id,
+            userId=userDatabase.users[i].id
+        )
+        commentDatabase.add_comment(comment)
+
+    for i in range(9):
+        status = 'accepted' if i % 2 == 0 else 'pending'
+        friendship = Friendship(
+            id=generate_random_id(),
+            userId=userDatabase.users[i].id,
+            friendId=userDatabase.users[i+1].id,
+            status=status
+        )
+        friendshipDatabase.add_friendship(friendship)
+
+    return {
+        "users": userDatabase.users,
+        "posts": postDatabase.posts,
+        "comments": commentDatabase.comments,
+        "friendships": friendshipDatabase.friendships
+    }
+
+@app.get("/frontend", response_class=HTMLResponse, tags=["frontend"])
+# return html template
+def frontend():
+    # Open and read the HTML file
+    with open("templates/index.html", "r") as file:
+        html_content = file.read()
+    return HTMLResponse(content=html_content)
