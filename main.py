@@ -11,12 +11,8 @@ import random
 
 app = FastAPI()
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
 templates = Jinja2Templates(directory="templates")
-
-
-
 
 class User(BaseModel):
     id: str
