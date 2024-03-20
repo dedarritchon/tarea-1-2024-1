@@ -357,8 +357,9 @@ def create_friendship(createFriendshipPayload: createFriendshipRequest, authoriz
     return friendship
 
 @app.get("/api/friendships", response_model=List[Friendship], tags=["friendships"])
-def get_friendships(userId: int):
-    return [friendship for friendship in friendshipDatabase.friendships if friendship.userId == userId]
+def get_friendships(authorization: Annotated[str, Header()]):
+    user = getUserFromSession(authorization)
+    return [friendship for friendship in friendshipDatabase.friendships if friendship.userId == user.id or friendship.friendId == user.id]
 
 @app.post("/api/friendships/{id}", response_model=Friendship, tags=["friendships"])
 def update_friendship(id: int, acceptFriendshipPayload: updateFriendshipRequest, authorization: Annotated[str, Header()]):

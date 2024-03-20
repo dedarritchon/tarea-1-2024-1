@@ -15,17 +15,51 @@
 
             <button @click="logout">Logout</button>
 
-            <div v-for="post in posts" :key="post.id" class="post">
-                <h2>{{ post.title }}</h2>
-                <p>{{ post.content }}</p>
-                <h3>Comments:</h3>
-                <div class="commentsContainer">
-                    <div v-for="comment in post.comments" :key="comment.id" class="comment">
-                        {{ comment.text }}
+            <div v-if="!selectedUser">
+                <h3>Posts:</h3>
+
+                <div v-for="post in posts" :key="post.id" class="post">
+                    <div class="post-author" @click="selectUser(post.userId)">
+                        <img :src="post.avatar" alt="avatar" width="50" height="50">
+                        <span>{{ post.username }}</span>
                     </div>
+                    <h2>{{ post.title }}</h2>
+                    <p>{{ post.content }}</p>
+                    <h3>Comments:</h3>
+                    <div class="commentsContainer">
+                        <div v-for="comment in post.comments" :key="comment.id" class="comment">
+                            <div class="comment-author" @click="selectUser(post.userId)">
+                                <img :src="comment.avatar" alt="avatar" width="20" height="20">
+                                <span>{{ comment.username }}</span>
+                            </div>
+                            {{ comment.content }}
+                        </div>
+                    </div>
+                    <input type="text" v-model="post.newCommentText" placeholder="Add comment">
+                    <button @click="addComment(post)">Add Comment</button>
                 </div>
-                <input type="text" v-model="post.newCommentText" placeholder="Add comment">
-                <button @click="addComment(post)">Add Comment</button>
+            </div>
+            <div v-else>
+                <button @click="selectUser(undefined)">Back</button>
+                <h3>User Profile:</h3>
+                <h2>{{ selectedUser.username }}</h2>
+                <img :src="selectedUser.avatar" alt="avatar" width="100" height="100">
+                user profile
+                areFriends: {{ areFriends(currentUser.id, selectedUser.id) }}
+                <div v-if="areFriends(currentUser.id, selectedUser.id)">
+                    <h3>
+                        Eres amigo de {{ selectedUser.username }}
+                    </h3>
+
+                </div>
+                <div v-else>
+                    <h3>
+                        No eres amigo de {{ selectedUser.username }}
+                    </h3>
+                    <button>
+                        Agregar amigo
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -46,17 +80,19 @@
                     username: '',
                     password: '',
                     userToken: undefined,
-                    currentUser: {}
+                    currentUser: {},
+                    users: {},
+                    selectedUser: undefined,
+                    friendships: []
                 };
             },
             created() {
                 this.getToken();
                 if (this.userToken) {
                     this.fetchUser();
+                    this.fetchUsers();
+                    this.fetchFriendships();
                     this.fetchPosts();
-                    for (let post of this.posts) {
-                        this.fetchComments(post.id);
-                    }
                 }
             },
             methods: {
@@ -66,6 +102,15 @@
                     if (token) {
                         this.userToken = token;
                     }
+                },
+                selectUser(userId) {
+                    this.selectedUser = this.users[userId];
+                },
+                areFriends(userId, friendId) {
+                    return this.friendships.some(friendship => {
+                        return (friendship.userId === userId && friendship.friendId === friendId) || 
+                            (friendship.userId === friendId && friendship.friendId === userId);
+                    });
                 },
                 fetchUser() {
                     // Make a GET request to fetch posts
@@ -83,29 +128,58 @@
                         })
                         .catch(error => console.error('Error fetching posts:', error));
                 },
-                fetchPosts() {
-                    // Make a GET request to fetch posts
-                    fetch('api/posts', {headers: { 'Authorization': `Bearer ${this.userToken}` }})
-                        .then(response => response.json())
-                        .then(posts => {
-                            this.posts = posts.map(post => ({
-                                ...post,
-                                comments: []
-                            }));
-                        })
-                        .catch(error => console.error('Error fetching posts:', error));
+                async fetchUsers() {
+                    try {
+                        const response = await fetch('api/users', { headers: { 'Authorization': `Bearer ${this.userToken}` } });
+                        const users = await response.json();                 
+                        for (let user of users) {
+                            this.users[user.id] = user;
+                        }
+                    } catch (error) {
+                        console.error('Error fetching posts:', error);
+                    }
                 },
-                fetchComments(postId) {
-                    // Make a GET request to fetch comments
-                    fetch(`api/comments?postId=${postId}`, {headers: { 'Authorization': `Bearer ${this.userToken}` }})
-                        .then(response => response.json())
-                        .then(comments => {
-                            const postIndex = this.posts.findIndex(post => post.id === postId);
-                            if (postIndex !== -1) {
-                                this.posts[postIndex].comments = comments;
-                            }
-                        })
-                        .catch(error => console.error('Error fetching comments:', error));
+                async fetchFriendships() {
+                    try {
+                        const response = await fetch('api/friendships', { headers: { 'Authorization': `Bearer ${this.userToken}` } });
+                        const friendships = await response.json();
+                        this.friendships = friendships;         
+                    } catch (error) {
+                        console.error('Error fetching posts:', error);
+                    }
+                },
+                async fetchPosts() {
+                    try {
+                        const response = await fetch('api/posts', { headers: { 'Authorization': `Bearer ${this.userToken}` } });
+                        const posts = await response.json();
+                        
+                        for (let post of posts) {
+                            post.comments = await this.fetchComments(post.id);
+                            post.username = this.users[post.userId].username;
+                            post.avatar = this.users[post.userId].avatar;
+                        }
+                        
+                        this.posts = posts;
+                    } catch (error) {
+                        console.error('Error fetching posts:', error);
+                    }
+                },
+                async fetchComments(postId) {
+                    try {
+                        const response = await fetch(`api/comments?postId=${postId}`, { headers: { 'Authorization': `Bearer ${this.userToken}` } });
+                        if (!response.ok) {
+                            throw new Error('Failed to fetch comments');
+                        }
+                        let comments = await response.json();
+                        for (let comment of comments) {
+                            comment.username = this.users[comment.userId].username;
+                            comment.avatar = this.users[comment.userId].avatar;
+                        }
+                        return comments;
+                    } catch (error) {
+                        console.error('Error fetching comments:', error);
+                        return []; // return an empty array or handle error accordingly
+                    }
                 },
                 login() {
                     // Make a POST request to login
@@ -147,11 +221,13 @@
                     })
                     .then(response => response.json())
                     .then(comment => {
-                        const postIndex = this.posts.findIndex(post => post.id === postId);
+                        const postIndex = this.posts.findIndex(existingPost => existingPost.id === post.id);
+                        comment.avatar = this.currentUser.avatar;
+                        comment.username = this.currentUser.username;
                         if (postIndex !== -1) {
                             this.posts[postIndex].comments.push(comment);
                         }
-                        this.newCommentText = ''; // Clear the input field after adding comment
+                        post.newCommentText = ''; 
                     })
                     .catch(error => console.error('Error adding comment:', error));
                 }
@@ -160,5 +236,31 @@
 
         app.mount('#app');
     </script>
+    <style>
+        .post {
+            border: 1px solid black;
+            margin: 10px;
+            padding: 10px;
+        }
+        .comment {
+            border: 1px solid black;
+            margin: 10px;
+            padding: 10px;
+        }
+
+        .post-author {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: blue;
+        }
+
+        .comment-author {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: green;
+        }
+    </style>
 </body>
 </html>
