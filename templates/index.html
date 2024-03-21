@@ -8,36 +8,50 @@
 <body>
     <div id="app">
         <h1>Integram</h1>
+        <img src="https://storage.googleapis.com/tarea-1-2024-1/integram_logo.png" alt="logo" width="400" height="80">
+
 
         <div v-if="userToken">
-            You are using token: {{ userToken }}
-            <h2>Welcome, {{ currentUser.username }}!</h2>
+            You are using token: {{ userToken }}, user: {{ currentUser.username }}
 
             <button @click="logout">Logout</button>
 
             <div v-if="!selectedUser">
                 <h3>Posts:</h3>
-
-                <div v-for="post in posts" :key="post.id" class="post">
-                    <div class="post-author" @click="selectUser(post.userId)">
-                        <img :src="post.avatar" alt="avatar" width="50" height="50">
-                        <span>{{ post.username }}</span>
-                    </div>
-                    <h2>{{ post.title }}</h2>
-                    <p>{{ post.content }}</p>
-                    <h3>Comments:</h3>
-                    <div class="commentsContainer">
-                        <div v-for="comment in post.comments" :key="comment.id" class="comment">
-                            <div class="comment-author" @click="selectUser(post.userId)">
-                                <img :src="comment.avatar" alt="avatar" width="20" height="20">
-                                <span>{{ comment.username }}</span>
-                            </div>
-                            {{ comment.content }}
+                <div class="posts-container">
+                    <div v-for="post in posts" :key="post.id" class="post">
+                        <div class="post-author" @click="selectUser(post.userId)">
+                            <img :src="post.avatar" alt="avatar" width="50" height="50">
+                            <span>{{ post.username }} ({{ post.userId }})</span>
                         </div>
+                        <div class="post-content-and-image">
+                            <div class="post-content">
+                                <h2>{{ post.title }}</h2>
+                                <p>{{ post.content }}</p>
+                            </div>
+                            <div class="post-image">
+                                <div v-if="post.image">
+                                    <img :src="post.image" alt="post image" width="200" height="200">
+                                </div>
+                                <div v-else>
+                                    No image
+                                </div>
+                            </div>
+                        </div>
+                        <h3>Comments:</h3>
+                        <div class="commentsContainer">
+                            <div v-for="comment in post.comments" :key="comment.id" class="comment">
+                                <div class="comment-author" @click="selectUser(comment.userId)">
+                                    <img :src="comment.avatar" alt="avatar" width="20" height="20">
+                                    <span>{{ comment.username }} ({{ comment.userId }})</span>
+                                </div>
+                                {{ comment.content }}
+                            </div>
+                        </div>
+                        <input type="text" v-model="post.newCommentText" placeholder="Add comment">
+                        <button @click="addComment(post)">Add Comment</button>
+                        <button @click="addCommentsToPost(post)">Fetch Comments</button>
                     </div>
-                    <input type="text" v-model="post.newCommentText" placeholder="Add comment">
-                    <button @click="addComment(post)">Add Comment</button>
-                    <button @click="addCommentsToPost(post)">Fetch Comments</button>
                 </div>
             </div>
             <div v-else>
@@ -45,31 +59,54 @@
                 <h3>User Profile:</h3>
                 <h2>{{ selectedUser.username }}</h2>
                 <img :src="selectedUser.avatar" alt="avatar" width="100" height="100">
-                user profile
-
-                <div v-if="currentUser.id == selectedUser.id">
-                    <h3>
-                        Eres tú
-                    </h3>
+                
+                <div v-if="isSelf">
+                    <h3>Friends</h3>
+                    <div v-for="friendship in friendships" :key="friendship.id">
+                        <div v-if="friendship.userId == currentUser.id && friendship.status == 'accepted'">
+                            {{users[friendship.friendId].username}}
+                        </div>
+                    </div>
+                    <h3>Friend Requests</h3>
+                    <div v-for="friendship in friendships" :key="friendship.id">
+                        <div v-if="friendship.userId == currentUser.id && friendship.status == 'pending'">
+                            {{friendship}}
+                            <button @click="acceptFriendship(friendship)">Accept</button>
+                        </div>
+                    </div>
                 </div>
-                <div v-else>
-                    <div v-if="areFriends(currentUser.id, selectedUser.id)">
-                        <h3>
-                            Eres amigo de {{ selectedUser.username }}
-                        </h3>
+
+                <div v-if="areFriends || isSelf">
+                    <h3 v-if="!isSelf">
+                        Eres amigo de {{ selectedUser.username }}
+                    </h3>
+                    <h3>Posts:</h3>
+                    <div class="posts-container">
                         <div v-for="post in userProfilePosts" :key="post.id" class="post">
                             <div class="post-author" @click="selectUser(post.userId)">
                                 <img :src="post.avatar" alt="avatar" width="50" height="50">
-                                <span>{{ post.username }}</span>
+                                <span>{{ post.username }} ({{ post.userId }})</span>
                             </div>
-                            <h2>{{ post.title }}</h2>
-                            <p>{{ post.content }}</p>
+                            <div class="post-content-and-image">
+                                <div class="post-content">
+                                    <h2>{{ post.title }}</h2>
+                                    <p>{{ post.content }}</p>
+                                </div>
+                                <div class="post-image">
+                                    <div v-if="post.image">
+                                        <img :src="post.image" alt="post image" width="200" height="200">
+                                    </div>
+                                    <div v-else>
+                                        No image
+                                    </div>
+                                </div>
+                            </div>
                             <h3>Comments:</h3>
-                            <div class="commentsContainer">
+                            <div class="comments">
                                 <div v-for="comment in post.comments" :key="comment.id" class="comment">
-                                    <div class="comment-author" @click="selectUser(post.userId)">
+                                    <div class="comment-author" @click="selectUser(comment.userId)">
                                         <img :src="comment.avatar" alt="avatar" width="20" height="20">
-                                        <span>{{ comment.username }}</span>
+                                        <span>{{ comment.username }} ({{ comment.userId }})</span>
                                     </div>
                                     {{ comment.content }}
                                 </div>
@@ -79,19 +116,20 @@
                             <button @click="addCommentsToPost(post)">Fetch Comments</button>
                         </div>
                     </div>
-                    <div v-else>
-                        <h3>
-                            No eres amigo de {{ selectedUser.username }}
-                        </h3>
-                        <button>
-                            Agregar amigo
-                        </button>
-                    </div>
+                </div>
+                <div v-else>
+                    <h3>
+                        No eres amigo de {{ selectedUser.username }}
+                    </h3>
+                    <button @click="addFriend(selectedUser.id)">
+                        Agregar amigo
+                    </button>
                 </div>
             </div>
         </div>
 
-        <div v-else>
+        <div v-else class="login">
+            <h3>Login:</h3>
             <input type="text" v-model="username" placeholder="Username">
             <input type="password" v-model="password" placeholder="Password">
             <button @click="login">Login</button>
@@ -138,12 +176,6 @@
                         this.fetchUserPosts(userId);
                     }
                 },
-                areFriends(userId, friendId) {
-                    return this.friendships.some(friendship => {
-                        return ((friendship.userId === userId && friendship.friendId === friendId) || 
-                            (friendship.userId === friendId && friendship.friendId === userId)) && friendship.status === 'accepted';
-                    });
-                },
                 fetchUser() {
                     // Make a GET request to fetch posts
                     fetch('api/user', {headers: { 'Authorization': `Bearer ${this.userToken}` }})
@@ -159,6 +191,42 @@
                             this.currentUser = user;
                         })
                         .catch(error => console.error('Error fetching posts:', error));
+                },
+                addFriend(friendId) {
+                    // Make a POST request to add friend
+                    fetch('api/friendships', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + this.userToken
+                        },
+                        body: JSON.stringify({
+                            friendId: friendId
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(friendship => {
+                        this.friendships.push(friendship);
+                    })
+                    .catch(error => console.error('Error adding friend:', error));
+                },
+                acceptFriendship(friendship) {
+                    // Make a PUT request to accept friend
+                    fetch(`api/friendships/${friendship.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + this.userToken
+                        },
+                        body: JSON.stringify({
+                            status: 'accepted'
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(friendship => {
+                        this.fetchFriendships();
+                    })
+                    .catch(error => console.error('Error accepting friend:', error));
                 },
                 async fetchUsers() {
                     try {
@@ -287,21 +355,49 @@
                     })
                     .catch(error => console.error('Error adding comment:', error));
                 }
+            },
+            computed: {
+                areFriends() {
+                    return this.friendships.some(friendship => {
+                        return ((friendship.userId === this.currentUser.id  && friendship.friendId === this.selectedUser.id) || 
+                            (friendship.userId === this.selectedUser.id && friendship.friendId === this.currentUser.id)) && friendship.status === 'accepted';
+                    });
+                },
+                isSelf() {
+                    return this.currentUser.id === this.selectedUser.id;
+                }
             }
         });
 
         app.mount('#app');
     </script>
     <style>
+        .login {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            border: 1px solid black;
+            margin: 10px;
+            padding: 5px;
+        }
         .post {
             border: 1px solid black;
             margin: 10px;
             padding: 10px;
+            border-radius: 10px;
         }
+
+        .comments {
+            border: 1px solid black;
+            margin: 10px;
+            padding: 10px;
+        }
+
         .comment {
             border: 1px solid black;
             margin: 10px;
             padding: 10px;
+            border-radius: 10px;
         }
 
         .post-author {
@@ -316,6 +412,17 @@
             align-items: center;
             gap: 10px;
             color: green;
+        }
+
+        .post-content-and-image {
+            display: flex;
+            gap: 10px;
+            justify-content: space-evenly;
+        }
+
+        .posts-container {
+            display: flex;
+            flex-flow: wrap;
         }
     </style>
 </body>

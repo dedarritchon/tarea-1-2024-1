@@ -41,12 +41,14 @@ class Post(BaseModel):
     id: str
     title: str
     content: str
+    image: Optional[str] = None
     created: Optional[str] = None
     userId: str
 
 class CreatePostRequest(BaseModel):
     title: str
     content: str
+    image: Optional[str] = None
 
 class Comment(BaseModel):
     id: str
@@ -306,6 +308,7 @@ def create_post(ceatePostPayload: CreatePostRequest, authorization: Annotated[st
         id=generate_random_id(),
         title=ceatePostPayload.title,
         content=ceatePostPayload.content,
+        image=ceatePostPayload.image,
         userId=user.id,
         created=datetime.datetime.now().isoformat()
     )
@@ -357,8 +360,8 @@ def get_friendships(authorization: Annotated[str, Header()]):
     user = getUserFromSession(authorization)
     return [friendship for friendship in friendshipDatabase.friendships if friendship.userId == user.id or friendship.friendId == user.id]
 
-@app.post("/api/friendships/{id}", response_model=Friendship, tags=["friendships"])
-def update_friendship(id: int, acceptFriendshipPayload: updateFriendshipRequest, authorization: Annotated[str, Header()]):
+@app.put("/api/friendships/{id}", response_model=Friendship, tags=["friendships"])
+def update_friendship(id: str, acceptFriendshipPayload: updateFriendshipRequest, authorization: Annotated[str, Header()]):
 
     user = getUserFromSession(authorization)
 
@@ -367,7 +370,7 @@ def update_friendship(id: int, acceptFriendshipPayload: updateFriendshipRequest,
     if not friendship:
         raise HTTPException(status_code=404, detail="Friendship not found")
 
-    if friendship.friendId != user.id:
+    if friendship.userId != user.id:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     friendship.status = acceptFriendshipPayload.status
@@ -431,12 +434,14 @@ def populate():
         userDatabase.add_user(user)
 
     for i in range(10):
+        image = f"https://source.unsplash.com/random/200x200?sig={i+1}"
         post = Post(
             id=generate_random_id(),
             title=f'post{i}',
             content=generate_random_content(),
             userId=userDatabase.users[i].id,
-            created=datetime.datetime.now().isoformat()
+            created=datetime.datetime.now().isoformat(),
+            image=image if i % 2 == 0 else None
         )
         postDatabase.add_post(post)
         
@@ -445,7 +450,7 @@ def populate():
             id=generate_random_id(),
             content=generate_random_content(),
             postId=postDatabase.posts[i].id,
-            userId=userDatabase.users[i].id,
+            userId=userDatabase.users[9-i].id,
             created=datetime.datetime.now().isoformat()
         )
         commentDatabase.add_comment(comment)
