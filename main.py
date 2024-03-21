@@ -12,10 +12,7 @@ import random
 
 app = FastAPI()
 
-origins = [
-    "https://tarea-1-2024-1.onrender.com",
-    "http://localhost:8888",
-]
+origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
