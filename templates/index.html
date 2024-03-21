@@ -7,10 +7,7 @@
 </head>
 <body>
     <div id="app">
-        <h1>Integram</h1>
         <img src="https://storage.googleapis.com/tarea-1-2024-1/integram_logo.png" alt="logo" width="400" height="80">
-
-
         <div v-if="userToken">
             You are using token: {{ userToken }}, user: {{ currentUser.username }}
 
@@ -140,6 +137,15 @@
     <script>
         const app = Vue.createApp({
             data() {
+
+                console.log(window.location.host)
+                let backendUrl = 'http://localhost:8888'
+
+                // let backendUrl = 'http://localhost:8888'
+                if (!(window.location.host === 'localhost:8888')) {
+                    backendUrl = 'https://tarea-1-2024-1.onrender.com'
+                }
+
                 return {
                     posts: [],
                     newCommentText: '',
@@ -150,7 +156,8 @@
                     users: {},
                     selectedUser: undefined,
                     friendships: [],
-                    userProfilePosts: []
+                    userProfilePosts: [],
+                    backendUrl: backendUrl
                 };
             },
             created() {
@@ -178,7 +185,7 @@
                 },
                 fetchUser() {
                     // Make a GET request to fetch posts
-                    fetch('api/user', {headers: { 'Authorization': `Bearer ${this.userToken}` }})
+                    fetch(this.backendUrl + '/api/user', {headers: { 'Authorization': `Bearer ${this.userToken}` }})
                         .then(response => response.json()).then(response => {
                             if (response.detail) {
                                 this.userToken = undefined;
@@ -194,7 +201,7 @@
                 },
                 addFriend(friendId) {
                     // Make a POST request to add friend
-                    fetch('api/friendships', {
+                    fetch(this.backendUrl + '/api/friendships', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -212,7 +219,7 @@
                 },
                 acceptFriendship(friendship) {
                     // Make a PUT request to accept friend
-                    fetch(`api/friendships/${friendship.id}`, {
+                    fetch(this.backendUrl + `/api/friendships/${friendship.id}`, {
                         method: 'PUT',
                         headers: {
                             'Content-Type': 'application/json',
@@ -230,7 +237,7 @@
                 },
                 async fetchUsers() {
                     try {
-                        const response = await fetch('api/users', { headers: { 'Authorization': `Bearer ${this.userToken}` } });
+                        const response = await fetch(this.backendUrl + '/api/users', { headers: { 'Authorization': `Bearer ${this.userToken}` } });
                         const users = await response.json();                 
                         for (let user of users) {
                             this.users[user.id] = user;
@@ -241,7 +248,7 @@
                 },
                 async fetchFriendships() {
                     try {
-                        const response = await fetch('api/friendships', { headers: { 'Authorization': `Bearer ${this.userToken}` } });
+                        const response = await fetch(this.backendUrl + '/api/friendships', { headers: { 'Authorization': `Bearer ${this.userToken}` } });
                         const friendships = await response.json();
                         this.friendships = friendships;         
                     } catch (error) {
@@ -250,7 +257,7 @@
                 },
                 async fetchPosts() {
                     try {
-                        const response = await fetch('api/posts', { headers: { 'Authorization': `Bearer ${this.userToken}` } });
+                        const response = await fetch(this.backendUrl + '/api/posts', { headers: { 'Authorization': `Bearer ${this.userToken}` } });
                         const posts = await response.json();
                         for (let i = 0; i < posts.length; i++) {
                             let post = posts[i];
@@ -266,7 +273,7 @@
                 },
                 async fetchUserPosts(userId) {
                     try {
-                        const response = await fetch(`api/posts?userId=${userId}`, { headers: { 'Authorization': `Bearer ${this.userToken}` } });
+                        const response = await fetch(this.backendUrl + `/api/posts?userId=${userId}`, { headers: { 'Authorization': `Bearer ${this.userToken}` } });
                         const posts = await response.json();
                         for (let i = 0; i < posts.length; i++) {
                             let post = posts[i];
@@ -282,7 +289,7 @@
                 },
                 async fetchComments(postId) {
                     try {
-                        const response = await fetch(`api/comments?postId=${postId}`, { headers: { 'Authorization': `Bearer ${this.userToken}` } });
+                        const response = await fetch(this.backendUrl + `/api/comments?postId=${postId}`, { headers: { 'Authorization': `Bearer ${this.userToken}` } });
                         if (!response.ok) {
                             throw new Error('Failed to fetch comments');
                         }
@@ -306,7 +313,7 @@
                 },
                 login() {
                     // Make a POST request to login
-                    fetch('api/login', {
+                    fetch(this.backendUrl + '/api/login', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -332,7 +339,7 @@
                 addComment(post) {
                     if (!post.newCommentText) return;
                     // Make a POST request to add comment
-                    fetch('api/comments', {
+                    fetch(this.backendUrl + '/api/comments', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
